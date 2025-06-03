@@ -1,0 +1,167 @@
+@startuml "Évaluation détaillée des soumissions"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Processus d'évaluation détaillée des soumissions"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nde réponses" as DB
+participant "Service d'évaluation" as EvalService
+participant "Service de finalisation" as FinalService
+participant "Service de notification" as NotifService
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+Admin -> UI: Accède à la page d'évaluation détaillée\n(id_questionnaire, id_prestataire)
+activate UI
+UI -> QueryManager: Demande informations du questionnaire
+activate QueryManager
+QueryManager -> DataService: Requête détails questionnaire
+activate DataService
+DataService -> DB: SELECT * FROM questionnaires\nWHERE id = [id_questionnaire]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Filtres de sécurité appliqués
+end note
+DB --> DataService: Détails du questionnaire
+deactivate DB
+DataService --> QueryManager: Informations questionnaire
+deactivate DataService
+QueryManager --> UI: Détails questionnaire
+deactivate QueryManager
+
+UI -> QueryManager: Demande informations du prestataire
+activate QueryManager
+QueryManager -> DataService: Requête informations prestataire
+activate DataService
+DataService -> DB: SELECT * FROM utilisateurs\nWHERE id = [id_prestataire]
+activate DB
+DB --> DataService: Informations prestataire
+deactivate DB
+DataService --> QueryManager: Informations prestataire
+deactivate DataService
+QueryManager --> UI: Détails prestataire
+deactivate QueryManager
+
+UI -> QueryManager: Demande questions et réponses
+activate QueryManager
+QueryManager -> DataService: Requête questions et réponses
+activate DataService
+DataService -> DB: SELECT questions, réponses, pièces jointes\nWHERE questionnaire_id = [id_questionnaire]\nAND prestataire_id = [id_prestataire]
+activate DB
+DB --> DataService: Questions et réponses complètes
+deactivate DB
+DataService --> QueryManager: Questions et réponses avec métadonnées
+deactivate DataService
+QueryManager --> UI: Données consolidées
+deactivate QueryManager
+
+alt Chargement réussi
+    UI -> UI: Initialise interface d'évaluation
+    UI -> Admin: Affiche questionnaire et réponses
+else Erreur de chargement
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate UI
+
+== Évaluation des questions individuelles ==
+Admin -> UI: Sélectionne une question à évaluer
+activate UI
+UI -> UI: Affiche détails de la question et réponse
+
+Admin -> UI: Sélectionne le statut de clarité\n(clair ou nécessite clarification)
+alt Réponse claire
+    Admin -> UI: Entre un score (0-5)
+    Admin -> UI: Ajoute remarque interne (optionnel)
+else Nécessite clarification
+    Admin -> UI: Saisit message de demande de clarification
+end
+
+Admin -> UI: Clique sur "Sauvegarder l'évaluation"
+UI -> UI: Valide données d'évaluation
+
+alt Validation réussie
+    UI -> EvalService: Envoie évaluation individuelle
+    activate EvalService
+    EvalService -> DB: UPDATE réponses\nSET statut_clarté, score, remarque, ...\nWHERE id = [id_réponse]
+    activate DB
+    note right of DB
+      Opération sécurisée:
+      - Vérifie rôle administrateur
+      - Valide contraintes sur score (0-5)
+      - Vérifie cohérence statut/champs requis
+    end note
+    
+    alt Sauvegarde réussie
+        DB --> EvalService: Confirmation mise à jour
+        EvalService --> UI: Succès
+        UI -> UI: Met à jour statut question évaluée
+        UI -> Admin: Affiche confirmation
+    else Erreur de sauvegarde
+        DB --> EvalService: Erreur
+        EvalService --> UI: Erreur avec détails
+        UI -> Admin: Affiche message d'erreur
+    end
+    deactivate DB
+    deactivate EvalService
+else Validation échouée
+    UI -> Admin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Finalisation de l'évaluation globale ==
+Admin -> UI: Saisit commentaire global (optionnel)
+activate UI
+Admin -> UI: Clique sur "Finaliser l'évaluation"
+
+UI -> UI: Vérifie que toutes les questions ont été évaluées
+alt Toutes les questions évaluées
+    UI -> FinalService: Demande finalisation
+    activate FinalService
+    FinalService -> DB: TRANSACTION BEGIN
+    activate DB
+    
+    FinalService -> DB: UPDATE statut_questionnaire\nSET statut = 'évalué',\nscore_global = [moyenne des scores],\ncommentaire = [commentaire_global],\névalué_par = [id_admin_actuel],\ndate_évaluation = NOW()
+    
+    alt Certaines questions nécessitent clarification
+        FinalService -> DB: SET statut = 'nécessite_clarification'
+    else Toutes les questions sont claires
+        FinalService -> DB: SET statut = 'évalué'
+    end
+    
+    DB --> FinalService: Confirmation mise à jour
+    
+    FinalService -> NotifService: Demande notification prestataire
+    activate NotifService
+    NotifService -> DB: INSERT notification\n(destinataire, titre, corps, type)
+    DB --> NotifService: Notification créée
+    deactivate NotifService
+    
+    FinalService -> DB: TRANSACTION COMMIT
+    DB --> FinalService: Transaction réussie
+    deactivate DB
+    
+    alt Finalisation réussie
+        FinalService --> UI: Confirmation finalisation
+        UI -> NavSystem: Demande redirection
+        activate NavSystem
+        NavSystem -> Admin: Redirige vers liste des soumissions
+        deactivate NavSystem
+    else Erreur de finalisation
+        FinalService --> UI: Erreur avec détails
+        UI -> Admin: Affiche message d'erreur
+    end
+    deactivate FinalService
+else Questions non évaluées
+    UI -> Admin: Indique les questions non évaluées
+end
+deactivate UI
+
+@enduml

@@ -1,0 +1,81 @@
+@startuml "Liste des questionnaires prestataire"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Gestion des questionnaires du prestataire"
+
+actor "Prestataire" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données" as DB
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+User -> UI: Accède à la page des questionnaires
+activate UI
+UI -> QueryManager: Demande liste des questionnaires assignés
+activate QueryManager
+QueryManager -> DataService: Requête questionnaires du prestataire
+activate DataService
+
+DataService -> DB: SELECT * FROM statuts_questionnaires\nWHERE id_prestataire = [id_utilisateur_courant]\nORDER BY date_échéance ASC
+activate DB
+note right of DB
+  Sécurité:
+  - Filtre automatiquement par id prestataire
+  - Limite l'accès aux questionnaires assignés
+  - Politiques d'accès appliquées au niveau DB
+end note
+
+alt Récupération réussie
+    DB --> DataService: Retourne questionnaires avec statuts
+    DataService --> QueryManager: Transmet données
+    QueryManager --> UI: Liste de questionnaires
+    
+    UI -> UI: Traitement et préparation des données
+    
+    alt Questionnaires trouvés
+        UI -> User: Affiche liste avec indicateurs visuels de statut:
+        note right of User
+          Statuts visuels:
+          - Brouillon (en cours)
+          - Soumis (en attente)
+          - Nécessite clarifications
+          - Révisé (avec score)
+        end note
+    else Aucun questionnaire
+        UI -> User: Affiche message "Aucun questionnaire assigné"
+    end
+    
+else Erreur de récupération
+    DB --> DataService: Erreur d'accès ou de requête
+    DataService --> QueryManager: Propage l'erreur
+    QueryManager --> UI: Signal d'erreur
+    UI -> User: Affiche message d'erreur
+    note right of User
+      Message explicatif:
+      - Problème de connexion
+      - Erreur serveur
+      - Action suggérée
+    end note
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+
+== Interaction utilisateur ==
+User -> UI: Clique sur un questionnaire
+activate UI
+
+UI -> UI: Capture l'identifiant du questionnaire sélectionné
+UI -> NavSystem: Demande navigation vers questionnaire détaillé
+activate NavSystem
+NavSystem -> User: Redirige vers page détaillée du questionnaire
+deactivate NavSystem
+
+deactivate UI
+
+@enduml

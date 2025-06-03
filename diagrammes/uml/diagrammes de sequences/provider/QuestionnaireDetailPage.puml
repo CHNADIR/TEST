@@ -1,0 +1,187 @@
+@startuml "Détail du questionnaire prestataire"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Processus de remplissage et soumission de questionnaire"
+
+actor "Prestataire" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de stockage" as StorageService
+participant "Service de données" as DataService
+database "Base de données" as DB
+participant "Service de notification" as NotifService
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+User -> UI: Accède au détail du questionnaire
+activate UI
+UI -> QueryManager: Demande données questionnaire
+activate QueryManager
+
+par Récupération des détails du questionnaire
+  QueryManager -> DataService: Requête détails du questionnaire
+  activate DataService
+  DataService -> DB: SELECT * FROM questionnaires\nWHERE id = [id_questionnaire]
+  activate DB
+  note right of DB
+    Sécurité:
+    - Vérifie que questionnaire est assigné au prestataire
+    - Filtre automatique par ACL
+  end note
+  DB --> DataService: Données questionnaire
+  deactivate DB
+  DataService --> QueryManager: Détails questionnaire
+  deactivate DataService
+also Récupération des questions
+  QueryManager -> DataService: Requête questions du questionnaire
+  activate DataService
+  DataService -> DB: SELECT * FROM questions\nWHERE id IN [ids_questions]
+  activate DB
+  DB --> DataService: Liste des questions
+  deactivate DB
+  DataService --> QueryManager: Questions
+  deactivate DataService
+also Récupération des réponses précédentes
+  QueryManager -> DataService: Requête réponses précédentes
+  activate DataService
+  DataService -> DB: SELECT dernières réponses\nWHERE questionnaire_id = [id_questionnaire]\nAND prestataire_id = [id_utilisateur]
+  activate DB
+  note right of DB
+    Sécurité:
+    - Filtre par id prestataire courant
+    - Récupère uniquement les dernières versions
+  end note
+  DB --> DataService: Réponses précédentes
+  deactivate DB
+  DataService --> QueryManager: Réponses
+  deactivate DataService
+end par
+
+QueryManager --> UI: Données consolidées
+deactivate QueryManager
+UI -> UI: Initialise formulaire avec\nquestions et réponses existantes
+UI -> User: Affiche questionnaire
+deactivate UI
+
+== Modification d'une réponse ==
+User -> UI: Modifie un champ
+activate UI
+UI -> UI: Déclenche temporisation (debounce 500ms)
+note right: Attend la fin de saisie\npour limiter les appels réseau
+
+UI -> DataService: Sauvegarde réponse individuelle
+activate DataService
+DataService -> DB: Enregistre réponse\n(id_question, réponse, id_questionnaire)
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que utilisateur = propriétaire
+  - Vérifie permissions d'écriture
+end note
+alt Sauvegarde réussie
+  DB --> DataService: Confirmation sauvegarde
+  DataService --> UI: Réponse sauvegardée
+  UI -> User: Indique sauvegarde réussie
+else Erreur de sauvegarde
+  DB --> DataService: Erreur
+  DataService --> UI: Erreur de sauvegarde
+  UI -> User: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+== Upload d'un fichier joint ==
+User -> UI: Sélectionne un fichier
+activate UI
+UI -> StorageService: Demande URL de téléversement
+activate StorageService
+StorageService --> UI: URL signée pour téléversement
+deactivate StorageService
+
+UI -> StorageService: Téléverse fichier via URL signée
+activate StorageService
+alt Téléversement réussi
+  StorageService --> UI: Fichier téléversé avec succès
+  UI -> DataService: Sauvegarde réponse avec métadonnées pièce jointe
+  activate DataService
+  DataService -> DB: Enregistre réponse + métadonnées fichier
+  activate DB
+  DB --> DataService: Confirmation sauvegarde
+  deactivate DB
+  DataService --> UI: Réponse avec pièce jointe sauvegardée
+  deactivate DataService
+  UI -> User: Affiche confirmation téléversement
+else Erreur de téléversement
+  StorageService --> UI: Erreur téléversement
+  UI -> User: Affiche erreur téléversement
+end
+deactivate StorageService
+deactivate UI
+
+== Sauvegarde globale ==
+User -> UI: Clique sur "Sauvegarder"
+activate UI
+UI -> DataService: Sauvegarde progression questionnaire
+activate DataService
+DataService -> DB: Enregistre toutes les réponses\nen statut brouillon
+activate DB
+note right of DB
+  Opération transactionnelle:
+  - Vérifie cohérence des données
+  - Met à jour statut = 'brouillon'
+end note
+alt Sauvegarde réussie
+  DB --> DataService: Confirmation sauvegarde globale
+  DataService --> UI: Progression sauvegardée
+  UI -> User: Affiche confirmation sauvegarde
+else Erreur de sauvegarde
+  DB --> DataService: Erreur
+  DataService --> UI: Erreur sauvegarde
+  UI -> User: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+== Soumission du questionnaire ==
+User -> UI: Clique sur "Soumettre les réponses"
+activate UI
+
+UI -> UI: Vérifie que toutes les questions\nobligatoires sont répondues
+alt Questions obligatoires non répondues
+  UI -> User: Affiche message d'erreur et\nfocalise sur question manquante
+else Toutes les questions obligatoires répondues
+  UI -> User: Demande confirmation ("Êtes-vous sûr...")
+  User -> UI: Confirme soumission
+  
+  UI -> DataService: Soumet questionnaire et notifie administrateurs
+  activate DataService
+  DataService -> DB: Enregistre toutes les réponses\net met à jour statut = 'soumis'
+  activate DB
+  DB --> DataService: Confirmation soumission
+  deactivate DB
+  
+  DataService -> NotifService: Crée notification pour administrateurs
+  activate NotifService
+  NotifService -> DB: INSERT INTO notifications\n(titre, corps, destinataires=admins)
+  activate DB
+  DB --> NotifService: Notification créée
+  deactivate DB
+  NotifService --> DataService: Confirmation notification
+  deactivate NotifService
+  
+  DataService --> UI: Confirmation soumission complète
+  deactivate DataService
+  
+  UI -> NavSystem: Redirection vers liste questionnaires
+  activate NavSystem
+  NavSystem -> User: Affiche page "Mes questionnaires"
+  deactivate NavSystem
+end
+deactivate UI
+
+@enduml

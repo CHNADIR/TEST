@@ -1,0 +1,169 @@
+@startuml "Gestion de la banque de questions"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Gestion de la banque de questions"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nquestions" as QuestionDB
+
+== Chargement initial ==
+Admin -> UI: Accède à la gestion de la banque de questions
+activate UI
+UI -> QueryManager: Demande liste des questions
+activate QueryManager
+QueryManager -> DataService: Requête questions
+activate DataService
+
+DataService -> QuestionDB: SELECT * FROM questions\nORDER BY updated_at DESC
+activate QuestionDB
+note right of QuestionDB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Filtre selon droits d'accès
+end note
+
+alt Récupération réussie
+    QuestionDB --> DataService: Liste des questions
+    DataService --> QueryManager: Transmet données
+    QueryManager --> UI: Questions récupérées
+    UI -> UI: Initialise tableau et pagination
+    UI -> Admin: Affiche liste des questions
+else Erreur d'accès ou de récupération
+    QuestionDB --> DataService: Erreur (ex: autorisation)
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur de récupération
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate QuestionDB
+deactivate DataService
+deactivate QueryManager
+
+== Recherche de questions ==
+Admin -> UI: Saisit critères de recherche
+activate UI
+UI -> UI: Filtre la liste locale
+UI -> Admin: Affiche résultats filtrés
+deactivate UI
+
+== Création d'une nouvelle question ==
+Admin -> UI: Clique "Ajouter une question"
+activate UI
+UI -> UI: Ouvre formulaire modal vide
+UI -> Admin: Affiche formulaire de création
+
+Admin -> UI: Remplit le formulaire et soumet
+UI -> UI: Valide données (longueur minimale, etc.)
+
+alt Validation réussie
+    UI -> DataService: Demande création question
+    activate DataService
+    DataService -> QuestionDB: INSERT INTO questions (...)
+    activate QuestionDB
+    
+    alt Création réussie
+        QuestionDB --> DataService: Confirmation création
+        DataService --> UI: Question créée
+        UI -> QueryManager: Actualise liste questions
+        activate QueryManager
+        QueryManager -> DataService: Requête liste mise à jour
+        DataService --> QueryManager: Liste actualisée
+        QueryManager --> UI: Liste mise à jour
+        deactivate QueryManager
+        UI -> UI: Ferme modal
+        UI -> Admin: Affiche notification succès et liste mise à jour
+    else Erreur création
+        QuestionDB --> DataService: Erreur (ex: doublon)
+        DataService --> UI: Erreur création
+        UI -> Admin: Affiche message d'erreur
+    end
+    deactivate QuestionDB
+    deactivate DataService
+else Validation échouée
+    UI -> Admin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Édition d'une question ==
+Admin -> UI: Sélectionne question à modifier
+activate UI
+UI -> UI: Ouvre formulaire modal pré-rempli
+UI -> Admin: Affiche formulaire avec données
+
+Admin -> UI: Modifie et soumet le formulaire
+UI -> UI: Valide données modifiées
+
+alt Validation réussie
+    UI -> DataService: Demande mise à jour question
+    activate DataService
+    DataService -> QuestionDB: UPDATE questions SET ... WHERE id = ?
+    activate QuestionDB
+    
+    alt Mise à jour réussie
+        QuestionDB --> DataService: Confirmation mise à jour
+        DataService --> UI: Question mise à jour
+        UI -> QueryManager: Actualise liste
+        activate QueryManager
+        QueryManager -> UI: Liste actualisée
+        deactivate QueryManager
+        UI -> UI: Ferme modal
+        UI -> Admin: Affiche notification succès et liste mise à jour
+    else Erreur mise à jour
+        QuestionDB --> DataService: Erreur
+        DataService --> UI: Erreur mise à jour
+        UI -> Admin: Affiche message d'erreur
+    end
+    deactivate QuestionDB
+    deactivate DataService
+else Validation échouée
+    UI -> Admin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Suppression d'une question ==
+Admin -> UI: Sélectionne action "Supprimer"
+activate UI
+UI -> UI: Affiche dialogue confirmation
+UI -> Admin: Demande confirmation suppression
+
+Admin -> UI: Confirme suppression
+UI -> DataService: Demande suppression question
+activate DataService
+DataService -> QuestionDB: DELETE FROM questions WHERE id = ?
+activate QuestionDB
+
+alt Suppression réussie
+    QuestionDB --> DataService: Confirmation suppression
+    DataService --> UI: Question supprimée
+    UI -> QueryManager: Actualise liste
+    activate QueryManager
+    QueryManager -> UI: Liste actualisée
+    deactivate QueryManager
+    UI -> Admin: Affiche notification succès et liste mise à jour
+else Erreur suppression
+    note right of QuestionDB
+      Erreurs possibles:
+      - Question référencée par des questionnaires existants
+      - Permissions insuffisantes
+    end note
+    QuestionDB --> DataService: Erreur (ex: contrainte référentielle)
+    DataService --> UI: Erreur suppression
+    UI -> Admin: Affiche message d'erreur explicatif
+end
+deactivate QuestionDB
+deactivate DataService
+deactivate UI
+
+== Navigation paginée ==
+Admin -> UI: Sélectionne une autre page
+activate UI
+UI -> UI: Calcule index de pagination
+UI -> Admin: Affiche questions de la page demandée
+deactivate UI
+
+@enduml

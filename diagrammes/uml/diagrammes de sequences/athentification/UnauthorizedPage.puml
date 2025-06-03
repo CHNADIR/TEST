@@ -1,0 +1,34 @@
+@startuml "Gestion de l'accès non autorisé"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor "Utilisateur" as User
+participant "Système de routage" as Router
+participant "Middleware de sécurité" as AuthMiddleware
+participant "Gestionnaire de session" as SessionManager
+participant "Interface utilisateur\npage d'erreur" as ErrorUI
+participant "Interface utilisateur\npage d'authentification" as AuthUI
+
+== Détection d'accès non autorisé ==
+Router -> AuthMiddleware: Tente d'accéder à une route protégée
+activate AuthMiddleware
+AuthMiddleware -> SessionManager: Vérifie les droits d'accès
+activate SessionManager
+SessionManager --> AuthMiddleware: Rôle utilisateur insuffisant
+deactivate SessionManager
+
+AuthMiddleware -> Router: Redirection vers /unauthorized
+deactivate AuthMiddleware
+Router -> ErrorUI: Affiche la page d'accès non autorisé
+activate ErrorUI
+ErrorUI -> User: Présente message d'erreur 401\navec détails sur les permissions requises
+
+== Retour à la connexion ==
+User -> ErrorUI: Clique sur "Retour à la connexion"
+ErrorUI -> Router: Demande redirection vers /auth
+deactivate ErrorUI
+Router -> AuthUI: Affiche interface de connexion
+AuthUI -> User: Présente formulaire d'authentification
+
+@enduml

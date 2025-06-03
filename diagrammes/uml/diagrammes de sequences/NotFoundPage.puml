@@ -1,0 +1,48 @@
+@startuml "Gestion des URLs inconnues"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+
+actor "Utilisateur" as User
+participant "Navigateur" as Browser
+participant "Système de routage" as Router
+participant "Interface utilisateur\npage d'erreur 404" as NotFoundUI
+participant "Interface utilisateur\npage d'accueil" as HomeUI
+
+== Navigation vers URL inconnue ==
+User -> Browser: Saisit ou suit un lien vers une URL
+activate Browser
+Browser -> Router: Demande accès à l'URL
+activate Router
+Router -> Router: Recherche correspondance avec routes définies
+note right
+  Route * (catch-all) est activée 
+  quand aucune autre route ne correspond
+end note
+Router -> NotFoundUI: Rend la page 404 (Not Found)
+deactivate Router
+activate NotFoundUI
+NotFoundUI -> Browser: Affiche la page d'erreur 404
+Browser -> User: Présente page "Page non trouvée"
+deactivate Browser
+
+== Journalisation de l'erreur ==
+NotFoundUI -> NotFoundUI: Journalise l'URL non trouvée
+note right
+  Enregistre l'URL tentée pour
+  analyse ultérieure des erreurs
+end note
+
+== Retour à l'accueil ==
+User -> Browser: Clique sur "Retour à l'accueil"
+activate Browser
+Browser -> Router: Demande redirection vers /
+activate Router
+Router -> HomeUI: Redirige vers la page d'accueil
+deactivate Router
+deactivate NotFoundUI
+HomeUI -> Browser: Affiche la page d'accueil
+Browser -> User: Présente page d'accueil
+deactivate Browser
+
+@enduml

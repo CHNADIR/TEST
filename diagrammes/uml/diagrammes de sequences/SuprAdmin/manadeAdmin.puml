@@ -1,0 +1,176 @@
+@startuml "Gestion des administrateurs"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Gestion des administrateurs"
+
+actor "Super-administrateur" as SuperAdmin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nutilisateurs" as DB
+participant "Service d'invitation" as InviteService
+participant "Système d'authentification" as AuthSystem
+
+== Vérification des permissions ==
+SuperAdmin -> UI: Accède à la page de gestion des administrateurs
+activate UI
+UI -> DataService: Vérifie le rôle de l'utilisateur
+activate DataService
+
+DataService -> DB: SELECT role FROM utilisateurs\nWHERE id = [utilisateur_courant]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie si l'appelant est super-administrateur
+  - Règle d'accès: admin_can_manage_admins
+end note
+
+alt Utilisateur autorisé (super-administrateur)
+    DB --> DataService: role = 'super-administrateur'
+    DataService --> UI: Accès autorisé
+else Accès non autorisé
+    DB --> DataService: role != 'super-administrateur'
+    DataService --> UI: Accès refusé
+    UI -> SuperAdmin: Redirection vers page non autorisée
+    note right: L'utilisateur est redirigé\nvers une page d'erreur 401
+end
+deactivate DB
+deactivate DataService
+
+== Chargement initial ==
+UI -> QueryManager: Demande liste des administrateurs
+activate QueryManager
+QueryManager -> DataService: Requête liste des administrateurs
+activate DataService
+
+DataService -> DB: SELECT * FROM utilisateurs\nWHERE role = 'administrateur'
+activate DB
+DB --> DataService: Retourne liste des administrateurs
+deactivate DB
+DataService --> QueryManager: Transmet données administrateurs
+deactivate DataService
+
+alt Récupération réussie
+    QueryManager --> UI: Liste des administrateurs
+    UI -> UI: Affiche tableau avec administrateurs
+    UI -> SuperAdmin: Présente interface de gestion
+else Erreur d'accès
+    QueryManager --> UI: Erreur de récupération
+    UI -> SuperAdmin: Affiche message d'erreur
+end
+deactivate QueryManager
+
+== Invitation d'un nouvel administrateur ==
+SuperAdmin -> UI: Clique sur "Inviter un administrateur"
+activate UI
+UI -> UI: Ouvre formulaire d'invitation
+UI -> SuperAdmin: Demande informations administrateur
+
+SuperAdmin -> UI: Saisit email et autres informations
+UI -> UI: Valide format email et champs requis
+alt Validation réussie
+    UI -> InviteService: Demande création compte administrateur
+    activate InviteService
+    
+    InviteService -> AuthSystem: Crée compte utilisateur (statut=invité, role=administrateur)
+    activate AuthSystem
+    alt Création compte réussie
+        AuthSystem --> InviteService: Confirme création compte
+        
+        InviteService -> DB: INSERT INTO utilisateurs\n(id, email, role='administrateur', statut='invité')
+        activate DB
+        DB --> InviteService: Confirme enregistrement rôle
+        deactivate DB
+        
+        InviteService -> InviteService: Génère lien d'invitation sécurisé
+        InviteService -> InviteService: Prépare email d'invitation
+        InviteService -> SuperAdmin: Envoie email avec lien d'invitation
+        
+        InviteService --> UI: Confirme invitation envoyée
+        UI -> QueryManager: Demande rafraîchissement liste
+        activate QueryManager
+        QueryManager -> DataService: Requête liste mise à jour
+        QueryManager -> UI: Liste mise à jour
+        deactivate QueryManager
+        UI -> SuperAdmin: Affiche confirmation et liste mise à jour
+    else Erreur création compte
+        AuthSystem --> InviteService: Erreur (ex: email déjà utilisé)
+        InviteService --> UI: Transmet erreur
+        UI -> SuperAdmin: Affiche message d'erreur spécifique
+    end
+    deactivate AuthSystem
+    deactivate InviteService
+else Validation échouée
+    UI -> SuperAdmin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Désactivation d'un administrateur ==
+SuperAdmin -> UI: Clique sur "Désactiver" pour un administrateur
+activate UI
+UI -> UI: Demande confirmation
+UI -> SuperAdmin: Affiche dialogue de confirmation
+
+SuperAdmin -> UI: Confirme désactivation
+UI -> DataService: Demande désactivation administrateur
+activate DataService
+
+DataService -> DB: UPDATE utilisateurs\nSET actif = false\nWHERE id = [id_administrateur]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est super-administrateur
+  - Empêche auto-désactivation
+end note
+
+alt Mise à jour réussie
+    DB --> DataService: Confirme désactivation
+    DataService --> UI: Confirme succès
+    UI -> UI: Met à jour affichage administrateur
+    UI -> SuperAdmin: Affiche notification de succès
+else Erreur de mise à jour
+    DB --> DataService: Erreur (ex: permissions)
+    DataService --> UI: Transmet erreur
+    UI -> SuperAdmin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+== Révocation du rôle administrateur ==
+SuperAdmin -> UI: Clique sur "Révoquer rôle" pour un administrateur
+activate UI
+UI -> UI: Demande confirmation
+UI -> SuperAdmin: Affiche dialogue de confirmation
+
+SuperAdmin -> UI: Confirme révocation
+UI -> DataService: Demande révocation du rôle
+activate DataService
+
+DataService -> DB: CALL révoquer_rôle_utilisateur(id_administrateur, 'administrateur')
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est super-administrateur
+  - Empêche autorévocation
+  - L'utilisateur conserve son compte mais perd les privilèges
+end note
+
+alt Révocation réussie
+    DB --> DataService: Confirme révocation
+    DataService --> UI: Confirme succès
+    UI -> UI: Met à jour affichage administrateur
+    UI -> SuperAdmin: Affiche notification de succès
+else Erreur de révocation
+    DB --> DataService: Erreur (ex: permissions)
+    DataService --> UI: Transmet erreur
+    UI -> SuperAdmin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+@enduml

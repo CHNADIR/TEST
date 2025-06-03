@@ -1,0 +1,154 @@
+@startuml "Consultation des réponses de questionnaire"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Consultation des réponses de questionnaire par l'administrateur"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données" as DB
+participant "Service de stockage" as StorageService
+
+== Chargement initial ==
+Admin -> UI: Accède à la page de détail des réponses\n(questionnaire_id, prestataire_id)
+activate UI
+UI -> QueryManager: Demande informations du questionnaire
+activate QueryManager
+QueryManager -> DataService: Requête détails questionnaire
+activate DataService
+
+DataService -> DB: SELECT * FROM questionnaires\nWHERE id = [questionnaire_id]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Filtres de sécurité appliqués
+end note
+
+alt Récupération réussie
+    DB --> DataService: Détails du questionnaire
+    DataService --> QueryManager: Transmet données questionnaire
+    QueryManager --> UI: Informations questionnaire
+else Erreur d'accès
+    DB --> DataService: Erreur d'autorisation
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur de récupération
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate DB
+
+UI -> QueryManager: Demande liste des questions
+activate QueryManager
+QueryManager -> DataService: Requête questions du questionnaire
+activate DataService
+
+DataService -> DB: SELECT * FROM questions\nWHERE id IN [ids_questions]
+activate DB
+DB --> DataService: Liste des questions
+deactivate DB
+DataService --> QueryManager: Transmet questions
+deactivate DataService
+QueryManager --> UI: Liste des questions
+deactivate QueryManager
+
+UI -> QueryManager: Demande réponses du prestataire
+activate QueryManager
+QueryManager -> DataService: Requête réponses prestataire
+activate DataService
+
+DataService -> DB: SELECT * FROM réponses\nWHERE questionnaire_id = [questionnaire_id]\nAND prestataire_id = [prestataire_id]
+activate DB
+note right of DB
+  Sécurité:
+  - Filtre par questionnaire et prestataire
+  - Vérifie autorisations administrateur
+end note
+
+alt Récupération réussie
+    DB --> DataService: Réponses du prestataire
+    DataService --> QueryManager: Transmet réponses
+    QueryManager --> UI: Données des réponses
+    UI -> UI: Combine questions et réponses
+else Erreur d'accès
+    DB --> DataService: Erreur
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur de récupération
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+
+UI -> Admin: Affiche questionnaire et réponses
+deactivate UI
+
+== Consultation des pièces jointes ==
+Admin -> UI: Consulte une réponse avec pièce jointe
+activate UI
+
+UI -> StorageService: Demande URL sécurisée pour la pièce jointe
+activate StorageService
+StorageService -> StorageService: Génère URL signée temporaire
+StorageService --> UI: URL sécurisée
+deactivate StorageService
+
+alt Génération URL réussie
+    UI -> UI: Affiche aperçu ou lien de téléchargement
+    UI -> Admin: Présente options (prévisualiser/télécharger)
+else Erreur de génération URL
+    UI -> Admin: Affiche message d'erreur
+end
+
+== Prévisualisation d'une pièce jointe ==
+Admin -> UI: Clique sur "Prévisualiser"
+activate UI
+UI -> UI: Ouvre modal avec aperçu
+alt Type de fichier supporté (image/PDF)
+    UI -> Admin: Affiche contenu dans modal
+else Type non supporté
+    UI -> Admin: Propose lien de téléchargement
+end
+deactivate UI
+
+== Téléchargement d'une pièce jointe ==
+Admin -> UI: Clique sur "Télécharger"
+activate UI
+UI -> UI: Déclenche téléchargement via URL signée
+UI -> Admin: Fichier téléchargé
+deactivate UI
+
+== Demande de clarification ==
+Admin -> UI: Clique sur "Demander clarification"
+activate UI
+UI -> UI: Ouvre formulaire de demande
+Admin -> UI: Saisit texte de clarification
+UI -> DataService: Envoie demande de clarification
+activate DataService
+
+DataService -> DB: UPDATE réponses\nSET statut = 'needs_clarification',\nclarification_request = [texte]\nWHERE id = [réponse_id]
+activate DB
+note right of DB
+  Opération protégée:
+  - Vérifie rôle administrateur
+  - Enregistre horodatage
+  - Déclenche notification au prestataire
+end note
+
+alt Mise à jour réussie
+    DB --> DataService: Confirmation mise à jour
+    DataService --> UI: Succès
+    UI -> Admin: Affiche confirmation
+else Erreur mise à jour
+    DB --> DataService: Erreur
+    DataService --> UI: Erreur
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+@enduml

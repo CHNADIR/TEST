@@ -1,0 +1,131 @@
+@startuml "Système de notifications"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Système de notifications - Flux utilisateur"
+
+actor "Utilisateur" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nnotifications" as DB
+participant "Service de communication" as CommService
+
+== Chargement initial des notifications ==
+User -> UI: Accède à la page des notifications
+activate UI
+
+UI -> QueryManager: Demande liste notifications(page, limite)
+activate QueryManager
+QueryManager -> DataService: Requête notifications
+activate DataService
+
+DataService -> DB: SELECT * FROM notifications\nWHERE user_id = [utilisateur_courant]\nORDER BY created_at DESC\nLIMIT [limite] OFFSET [décalage]
+activate DB
+note right of DB
+  Sécurité:
+  - Filtre automatique par utilisateur courant
+  - Accès limité aux notifications personnelles
+end note
+
+alt Succès requête
+    DB --> DataService: Retourne notifications + total
+    DataService --> QueryManager: Transmet données et métadonnées
+    QueryManager --> UI: Données notifications
+    UI -> UI: Affiche liste avec indicateurs\npour notifications non lues
+else Erreur d'accès
+    DB --> DataService: Erreur d'autorisation/accès
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur lors de la récupération
+    UI -> User: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+
+== Écoute des nouvelles notifications (temps réel) ==
+UI -> DataService: Établit connexion temps réel
+activate DataService
+DataService -> DB: Souscrit aux changements notifications\nde l'utilisateur courant
+activate DB
+
+note right of DB
+  Canal de communication:
+  - Événements INSERT/UPDATE/DELETE
+  - Filtré par user_id
+  - Sécurisé par authentification
+end note
+deactivate DB
+
+== Interaction avec une notification ==
+User -> UI: Clique sur une notification non lue
+activate UI
+UI -> UI: Identifie la notification sélectionnée
+
+UI -> QueryManager: Demande marquage comme lue(id notification)
+activate QueryManager
+QueryManager -> DataService: Met à jour statut
+activate DataService
+
+DataService -> DB: UPDATE notifications\nSET status = 'read', read_at = NOW()\nWHERE id = [id_notif]\nAND user_id = [utilisateur_courant]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérification que l'utilisateur est propriétaire
+  - Horodatage automatique de la lecture
+end note
+
+alt Succès mise à jour
+    DB --> DataService: Confirmation mise à jour
+    DataService --> QueryManager: Notification mise à jour
+    QueryManager --> UI: Mise à jour réussie
+    UI -> UI: Actualise affichage\nMet à jour compteur non lues
+    UI -> User: Feedback visuel (changement style)
+else Erreur
+    DB --> DataService: Erreur lors de la mise à jour
+    DataService --> QueryManager: Erreur
+    QueryManager --> UI: Échec mise à jour
+    UI -> User: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+deactivate UI
+
+== Création de nouvelle notification (processus externe) ==
+note over CommService
+  Événement système déclenche une notification
+  (hors contexte interface utilisateur)
+end note
+
+activate CommService
+CommService -> DataService: Demande création notification(destinataire, contenu)
+activate DataService
+DataService -> DB: INSERT INTO notifications\n(user_id, title, body, status, ...)\nVALUES ([destinataire], [titre], [contenu], 'unread', ...)
+activate DB
+DB --> DataService: Notification créée
+deactivate DB
+
+alt Notification temps réel active
+    DataService -> UI: Notifie changement via canal temps réel
+    activate UI
+    UI -> UI: Met à jour compteur\nNotification visuelle (toast)
+    UI -> User: Alerte nouvelle notification
+    deactivate UI
+end
+
+DataService -> CommService: Confirme création
+deactivate DataService
+
+CommService -> CommService: Déclenche processus d'envoi email
+note right of CommService
+  Actions post-notification:
+  - Email de notification
+  - Push notification mobile (optionnel)
+  - Autres intégrations
+end note
+deactivate CommService
+
+@enduml

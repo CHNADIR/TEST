@@ -1,0 +1,125 @@
+@startuml "Tableau de bord super-administrateur"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Tableau de bord super-administrateur"
+
+actor "Super-administrateur" as SuperAdmin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données" as DB
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+SuperAdmin -> UI: Accède au tableau de bord
+activate UI
+UI -> QueryManager: Demande statistiques du tableau de bord
+activate QueryManager
+QueryManager -> DataService: Requête statistiques super-administrateur
+activate DataService
+DataService -> DB: Exécute procédure d'agrégation des statistiques
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est super-administrateur
+  - Accès complet aux données administratives
+end note
+DB --> DataService: Retourne statistiques complètes
+deactivate DB
+DataService --> QueryManager: Transmet données statistiques
+deactivate DataService
+
+alt Succès
+    QueryManager --> UI: Données statistiques
+    UI -> UI: Affiche les indicateurs de performance (KPIs)
+else Erreur de récupération
+    QueryManager --> UI: Signal d'erreur
+    UI -> SuperAdmin: Affiche message d'erreur
+end
+deactivate QueryManager
+
+== Affichage des données étendues ==
+UI -> UI: Initialise les composants visuels avec privilèges étendus
+activate UI #DarkGray
+
+par Récupération des administrateurs
+    UI -> QueryManager: Demande liste administrateurs
+    activate QueryManager
+    QueryManager -> DataService: Requête liste administrateurs
+    activate DataService
+    DataService -> DB: Sélectionne administrateurs
+    activate DB
+    note right of DB
+      Sécurité:
+      - Accès réservé aux super-administrateurs
+      - Données sensibles accessibles
+    end note
+    DB --> DataService: Retourne liste administrateurs
+    deactivate DB
+    DataService --> QueryManager: Transmet données
+    deactivate DataService
+    QueryManager --> UI: Données administrateurs
+    deactivate QueryManager
+    UI -> UI: Affiche section gestion administrateurs
+also Récupération des prestataires
+    UI -> QueryManager: Demande liste prestataires
+    activate QueryManager
+    QueryManager -> DataService: Requête liste prestataires
+    activate DataService
+    DataService -> DB: Sélectionne tous les prestataires
+    activate DB
+    DB --> DataService: Retourne liste prestataires
+    deactivate DB
+    DataService --> QueryManager: Transmet données
+    deactivate DataService
+    QueryManager --> UI: Données prestataires
+    deactivate QueryManager
+    UI -> UI: Affiche tableau prestataires
+also Récupération des questionnaires assignés
+    UI -> QueryManager: Demande questionnaires assignés
+    activate QueryManager
+    QueryManager -> DataService: Requête questionnaires assignés
+    activate DataService
+    DataService -> DB: Sélectionne questionnaires assignés
+    activate DB
+    DB --> DataService: Retourne questionnaires
+    deactivate DB
+    DataService --> QueryManager: Transmet données
+    deactivate DataService
+    QueryManager --> UI: Données questionnaires
+    deactivate QueryManager
+    UI -> UI: Affiche tableau questionnaires
+end par
+deactivate UI #DarkGray
+
+== Interactions utilisateur étendues ==
+alt Gestion des administrateurs
+    SuperAdmin -> UI: Clique sur "Gérer les administrateurs"
+    activate UI
+    UI -> NavSystem: Demande navigation vers page de gestion des administrateurs
+    activate NavSystem
+    NavSystem -> SuperAdmin: Affiche la page de gestion des administrateurs
+    deactivate NavSystem
+    deactivate UI
+else Gestion des prestataires
+    SuperAdmin -> UI: Clique sur "Gérer les prestataires"
+    activate UI
+    UI -> NavSystem: Demande navigation vers page de gestion des prestataires
+    activate NavSystem
+    NavSystem -> SuperAdmin: Affiche la page de gestion des prestataires
+    deactivate NavSystem
+    deactivate UI
+else Gestion des soumissions
+    SuperAdmin -> UI: Clique sur "Soumissions à réviser"
+    activate UI
+    UI -> NavSystem: Demande navigation vers page de révision
+    activate NavSystem
+    NavSystem -> SuperAdmin: Affiche la page de soumissions à réviser
+    deactivate NavSystem
+    deactivate UI
+end
+
+@enduml

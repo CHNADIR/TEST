@@ -1,0 +1,88 @@
+@startuml "Profil Provider"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Gestion du profil Provider"
+
+actor "Provider" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire d'état" as StateManager
+participant "Service de requêtes" as QueryService
+participant "Système d'authentification" as AuthSystem
+database "Base de données\nprofils" as ProfilesDB
+
+== Chargement initial de la page ==
+User -> UI: Accède à la page profil
+activate UI
+UI -> StateManager: Récupère données utilisateur courant
+activate StateManager
+StateManager -> UI: Retourne identifiant utilisateur
+deactivate StateManager
+
+UI -> QueryService: Demande profil(identifiant)
+activate QueryService
+QueryService -> AuthSystem: Vérifie autorisation
+activate AuthSystem
+AuthSystem --> QueryService: Confirme autorisation
+deactivate AuthSystem
+
+QueryService -> ProfilesDB: SELECT * FROM profils\nWHERE id = [identifiant_courant]
+activate ProfilesDB
+note right of ProfilesDB
+  Sécurité:
+  - Vérifie que l'utilisateur accède à son propre profil
+  - Limite les colonnes accessibles selon le rôle
+end note
+
+alt Profil trouvé
+    ProfilesDB --> QueryService: Données du profil
+    QueryService --> UI: Transmet données profil
+    UI -> UI: Affiche formulaire pré-rempli
+else Profil non trouvé
+    ProfilesDB --> QueryService: Aucune donnée
+    QueryService --> UI: Erreur: profil non trouvé
+    UI -> User: Affiche message "Profil non disponible"
+end
+deactivate ProfilesDB
+deactivate QueryService
+
+== Modification des informations ==
+User -> UI: Modifie champs du profil
+activate UI
+
+UI -> UI: Déclenche temporisation\n(debounce 500ms)
+note right: Attend fin de saisie\npour éviter requêtes excessives
+
+UI -> QueryService: Sauvegarde profil(identifiant, données)
+activate QueryService
+QueryService -> ProfilesDB: UPDATE profils\nSET champs = valeurs\nWHERE id = [identifiant_courant]
+activate ProfilesDB
+note right of ProfilesDB
+  Validation:
+  - Vérifie format d'email
+  - Contrôle longueur des champs
+  - Sanitize entrées utilisateur
+end note
+
+alt Sauvegarde réussie (200 OK)
+    ProfilesDB --> QueryService: Confirmation mise à jour
+    QueryService --> UI: Mise à jour réussie
+    UI -> User: Affiche notification "Profil sauvegardé"
+    UI -> UI: Met à jour l'interface avec données confirmées
+else Erreur validation (400)
+    ProfilesDB --> QueryService: Erreur validation
+    QueryService --> UI: Détails erreur validation
+    UI -> User: Affiche message d'erreur spécifique
+else Erreur serveur (5xx)
+    ProfilesDB --> QueryService: Erreur serveur
+    QueryService --> UI: Erreur de sauvegarde
+    UI -> User: "Impossible de sauvegarder, veuillez réessayer"
+    UI -> UI: Maintient les données saisies
+end
+deactivate ProfilesDB
+deactivate QueryService
+deactivate UI
+
+@enduml

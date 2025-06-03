@@ -1,0 +1,121 @@
+@startuml "Tableau de bord utilisateur"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Tableau de bord utilisateur"
+
+actor "Utilisateur" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données" as Database
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+User -> UI: Accède au tableau de bord
+activate UI
+
+UI -> UI: Initialisation
+activate UI #DarkGray
+
+par Récupération des activités
+    UI -> QueryManager: Demande liste d'activités
+    activate QueryManager
+    QueryManager -> DataService: Requête activités utilisateur
+    activate DataService
+    
+    DataService -> Database: Interroge collection activités
+    activate Database
+    note right of Database
+        Sécurité:
+        - Filtre par utilisateur courant
+        - Restreint l'accès aux données personnelles
+    end note
+    
+    Database --> DataService: Retourne activités et statuts
+    deactivate Database
+    
+    DataService --> QueryManager: Transmet données
+    deactivate DataService
+    
+    alt Succès
+        QueryManager --> UI: Données d'activités
+    else Erreur
+        QueryManager --> UI: Signal d'erreur
+        UI -> UI: Marque erreur activités
+        UI -> User: Affiche message d'erreur
+    end
+    deactivate QueryManager
+    
+also Récupération des notifications
+    UI -> QueryManager: Demande notifications récentes
+    activate QueryManager
+    QueryManager -> DataService: Requête notifications non lues
+    activate DataService
+    
+    DataService -> Database: Interroge collection notifications
+    activate Database
+    note right of Database
+        Sécurité:
+        - Filtre par utilisateur courant
+        - Limite aux notifications personnelles
+    end note
+    
+    Database --> DataService: Retourne notifications non lues
+    deactivate Database
+    
+    DataService --> QueryManager: Transmet données
+    deactivate DataService
+    
+    alt Succès
+        QueryManager --> UI: Données notifications
+    else Erreur
+        QueryManager --> UI: Signal d'erreur
+        UI -> UI: Marque erreur notifications
+        UI -> User: Affiche message d'erreur
+    end
+    deactivate QueryManager
+end par
+deactivate UI #DarkGray
+
+UI -> UI: Organise présentation des données
+
+alt Données disponibles
+    UI -> User: Affiche tableau de bord avec\n- Cartes d'activités\n- États des activités\n- Alertes récentes
+else Aucune activité trouvée
+    UI -> User: Affiche message d'information
+end
+
+== Interaction utilisateur ==
+User -> UI: Sélectionne une activité
+activate UI
+
+UI -> UI: Traite la sélection
+UI -> NavSystem: Demande navigation vers détail activité
+activate NavSystem
+
+NavSystem -> User: Affiche page détaillée
+deactivate NavSystem
+deactivate UI
+
+== Traitement des notifications ==
+User -> UI: Interagit avec une notification
+activate UI
+UI -> DataService: Demande marquage comme lue
+activate DataService
+DataService -> Database: Met à jour statut notification
+activate Database
+Database --> DataService: Confirme mise à jour
+deactivate Database
+DataService --> UI: Confirme action
+deactivate DataService
+UI -> QueryManager: Demande rafraîchissement données
+activate QueryManager
+QueryManager --> UI: Confirme mise à jour
+deactivate QueryManager
+UI -> User: Actualise affichage
+deactivate UI
+
+@enduml

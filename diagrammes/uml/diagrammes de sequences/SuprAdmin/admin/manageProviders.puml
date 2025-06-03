@@ -1,0 +1,126 @@
+@startuml "Gestion des prestataires"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Gestion des prestataires"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nutilisateurs" as DB
+participant "Service d'invitation" as InviteService
+participant "Système d'authentification" as AuthSystem
+
+== Chargement initial ==
+Admin -> UI: Accède à la page de gestion des prestataires
+activate UI
+UI -> QueryManager: Demande liste des prestataires
+activate QueryManager
+QueryManager -> DataService: Requête liste des prestataires
+activate DataService
+
+DataService -> DB: SELECT * FROM utilisateurs\nWHERE role = 'prestataire'
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Filtre selon permissions
+end note
+
+alt Récupération réussie
+    DB --> DataService: Retourne liste des prestataires
+    DataService --> QueryManager: Transmet données prestataires
+    QueryManager --> UI: Liste des prestataires
+    UI -> UI: Affiche tableau avec prestataires
+    UI -> Admin: Présente interface de gestion
+else Erreur d'accès
+    DB --> DataService: Erreur d'autorisation
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur de récupération
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+
+== Invitation d'un nouveau prestataire ==
+Admin -> UI: Clique sur "Inviter un prestataire"
+activate UI
+UI -> UI: Ouvre formulaire d'invitation
+UI -> Admin: Demande informations prestataire
+
+Admin -> UI: Saisit email et autres informations
+UI -> UI: Valide format email et champs requis
+alt Validation réussie
+    UI -> InviteService: Demande création compte prestataire
+    activate InviteService
+    
+    InviteService -> AuthSystem: Crée compte utilisateur (statut=invité)
+    activate AuthSystem
+    alt Création compte réussie
+        AuthSystem --> InviteService: Confirme création compte
+        
+        InviteService -> DB: INSERT INTO utilisateurs\n(id, email, role='prestataire', statut='invité')
+        activate DB
+        DB --> InviteService: Confirme enregistrement rôle
+        deactivate DB
+        
+        InviteService -> InviteService: Génère lien d'invitation sécurisé
+        InviteService -> InviteService: Prépare email d'invitation
+        InviteService -> Admin: Envoie email avec lien d'invitation
+        
+        InviteService --> UI: Confirme invitation envoyée
+        UI -> QueryManager: Demande rafraîchissement liste
+        activate QueryManager
+        QueryManager -> DataService: Requête liste mise à jour
+        QueryManager -> UI: Liste mise à jour
+        deactivate QueryManager
+        UI -> Admin: Affiche confirmation et liste mise à jour
+    else Erreur création compte
+        AuthSystem --> InviteService: Erreur (ex: email déjà utilisé)
+        InviteService --> UI: Transmet erreur
+        UI -> Admin: Affiche message d'erreur spécifique
+    end
+    deactivate AuthSystem
+    deactivate InviteService
+else Validation échouée
+    UI -> Admin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Désactivation d'un prestataire ==
+Admin -> UI: Clique sur "Désactiver" pour un prestataire
+activate UI
+UI -> UI: Demande confirmation
+UI -> Admin: Affiche dialogue de confirmation
+
+Admin -> UI: Confirme désactivation
+UI -> DataService: Demande désactivation prestataire
+activate DataService
+
+DataService -> DB: UPDATE utilisateurs\nSET actif = false\nWHERE id = [id_prestataire]
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Empêche auto-désactivation
+end note
+
+alt Mise à jour réussie
+    DB --> DataService: Confirme désactivation
+    DataService --> UI: Confirme succès
+    UI -> UI: Met à jour affichage prestataire
+    UI -> Admin: Affiche notification de succès
+else Erreur de mise à jour
+    DB --> DataService: Erreur (ex: permissions)
+    DataService --> UI: Transmet erreur
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate DB
+deactivate DataService
+deactivate UI
+
+@enduml

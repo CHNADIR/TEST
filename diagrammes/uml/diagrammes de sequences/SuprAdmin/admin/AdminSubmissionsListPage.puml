@@ -1,0 +1,105 @@
+@startuml "Liste des soumissions à réviser"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Processus de révision des soumissions de questionnaires"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données" as DB
+participant "Système de navigation" as NavSystem
+
+== Chargement initial ==
+Admin -> UI: Accède à la page de liste des soumissions
+activate UI
+UI -> QueryManager: Demande liste des soumissions à réviser
+activate QueryManager
+QueryManager -> DataService: Requête soumissions avec statut='submitted'
+activate DataService
+
+DataService -> DB: Exécute procédure d'agrégation des soumissions
+activate DB
+note right of DB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Filtre les soumissions actives/non archivées
+end note
+
+alt Récupération réussie
+    DB --> DataService: Liste des soumissions (questionnaires, prestataires, dates)
+    DataService --> QueryManager: Transmet données structurées
+    QueryManager --> UI: Données des soumissions
+    
+    alt Soumissions trouvées
+        UI -> UI: Formatage des dates et statuts
+        UI -> Admin: Affiche tableau des soumissions avec:
+        note right of Admin
+          Colonnes affichées:
+          - Nom du questionnaire
+          - Email du prestataire
+          - Date de soumission
+          - Statut de révision
+          - Actions disponibles
+        end note
+    else Aucune soumission à réviser
+        UI -> Admin: Affiche message "Aucune soumission en attente de révision"
+    end
+    
+else Erreur de récupération
+    DB --> DataService: Erreur (ex: autorisation)
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Signal d'erreur
+    UI -> Admin: Affiche message d'erreur avec détails
+end
+deactivate DB
+deactivate DataService
+deactivate QueryManager
+
+== Interaction avec une soumission ==
+Admin -> UI: Clique sur "Démarrer/Continuer révision" pour une soumission
+activate UI
+
+UI -> UI: Capture les identifiants du questionnaire et du prestataire
+UI -> UI: Prépare les métadonnées pour le contexte de révision
+note right
+  Métadonnées:
+  - ID questionnaire
+  - ID prestataire
+  - Nom du questionnaire
+  - Email du prestataire
+end note
+
+UI -> NavSystem: Demande navigation vers page détaillée
+activate NavSystem
+NavSystem -> Admin: Redirige vers page de révision détaillée\navec les paramètres nécessaires
+deactivate NavSystem
+deactivate UI
+
+== Filtrage et recherche (optionnel) ==
+Admin -> UI: Saisit critères de recherche/filtrage
+activate UI
+UI -> UI: Filtre la liste localement selon les critères
+UI -> Admin: Affiche résultats filtrés
+deactivate UI
+
+== Actualisation des données ==
+Admin -> UI: Demande actualisation (bouton rafraîchir)
+activate UI
+UI -> QueryManager: Déclenche nouvelle requête
+activate QueryManager
+QueryManager -> DataService: Requête liste mise à jour
+DataService -> DB: Récupère données actualisées
+activate DB
+DB --> DataService: Données fraîches
+DataService --> QueryManager: Transmet mise à jour
+QueryManager --> UI: Liste mise à jour
+deactivate DB
+UI -> Admin: Affiche données actualisées
+deactivate QueryManager
+deactivate UI
+
+@enduml

@@ -1,0 +1,171 @@
+@startuml "Gestion des questionnaires"
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Processus de gestion des questionnaires"
+
+actor "Administrateur" as Admin
+participant "Interface utilisateur" as UI
+participant "Gestionnaire de requêtes" as QueryManager
+participant "Service de données" as DataService
+database "Base de données\nquestionnaires" as QuestionnairesDB
+database "Base de données\nquestions" as QuestionsDB
+participant "Service d'association\nde questions" as AssociationService
+participant "Service d'assignation\naux prestataires" as AssignationService
+
+== Chargement initial ==
+Admin -> UI: Accède à la page de gestion des questionnaires
+activate UI
+UI -> QueryManager: Demande liste des questionnaires
+activate QueryManager
+QueryManager -> DataService: Requête liste questionnaires
+activate DataService
+
+DataService -> QuestionnairesDB: SELECT * FROM questionnaires
+activate QuestionnairesDB
+note right of QuestionnairesDB
+  Sécurité:
+  - Vérifie que l'appelant est admin/superAdmin
+  - Applique filtres de sécurité
+end note
+
+alt Récupération réussie
+    QuestionnairesDB --> DataService: Liste des questionnaires
+    DataService --> QueryManager: Transmet données
+    QueryManager --> UI: Liste questionnaires
+    UI -> UI: Affiche tableau questionnaires
+else Erreur d'accès
+    QuestionnairesDB --> DataService: Erreur d'autorisation
+    DataService --> QueryManager: Propage erreur
+    QueryManager --> UI: Erreur de récupération
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate QuestionnairesDB
+deactivate DataService
+deactivate QueryManager
+
+== Création d'un nouveau questionnaire ==
+Admin -> UI: Clique sur "Nouveau questionnaire"
+activate UI
+UI -> UI: Affiche modale de création
+Admin -> UI: Saisit détails questionnaire
+UI -> UI: Valide formulaire
+
+alt Validation réussie
+    UI -> DataService: Demande création questionnaire
+    activate DataService
+    DataService -> QuestionnairesDB: INSERT INTO questionnaires
+    activate QuestionnairesDB
+    
+    alt Création réussie
+        QuestionnairesDB --> DataService: Confirmation création
+        DataService --> UI: ID du nouveau questionnaire
+        UI -> UI: Ferme modale
+        UI -> QueryManager: Actualise liste
+        activate QueryManager
+        QueryManager -> DataService: Requête liste mise à jour
+        DataService --> QueryManager: Données actualisées
+        QueryManager --> UI: Liste mise à jour
+        deactivate QueryManager
+        UI -> Admin: Notification de succès
+    else Erreur création
+        QuestionnairesDB --> DataService: Erreur (ex: doublon)
+        DataService --> UI: Erreur de création
+        UI -> Admin: Affiche message d'erreur
+    end
+    deactivate QuestionnairesDB
+    deactivate DataService
+else Validation échouée
+    UI -> Admin: Affiche erreurs de validation
+end
+deactivate UI
+
+== Sélection des questions ==
+Admin -> UI: Édite questionnaire et sélectionne questions
+activate UI
+UI -> QueryManager: Demande liste questions disponibles
+activate QueryManager
+QueryManager -> DataService: Requête questions
+activate DataService
+
+DataService -> QuestionsDB: SELECT * FROM questions
+activate QuestionsDB
+QuestionsDB --> DataService: Liste questions
+deactivate QuestionsDB
+
+DataService --> QueryManager: Questions disponibles
+deactivate DataService
+QueryManager --> UI: Liste questions
+deactivate QueryManager
+
+Admin -> UI: Sélectionne questions pour le questionnaire
+UI -> UI: Valide sélection
+Admin -> UI: Confirme sélection
+
+UI -> AssociationService: Associe questions à questionnaire
+activate AssociationService
+AssociationService -> QuestionnairesDB: UPDATE questionnaire\nSET question_ids = [...]
+activate QuestionnairesDB
+
+alt Association réussie
+    QuestionnairesDB --> AssociationService: Confirmation
+    AssociationService --> UI: Association réussie
+    UI -> Admin: Notification succès
+else Erreur d'association
+    QuestionnairesDB --> AssociationService: Erreur
+    AssociationService --> UI: Erreur d'association
+    UI -> Admin: Affiche message d'erreur
+end
+deactivate QuestionnairesDB
+deactivate AssociationService
+deactivate UI
+
+== Assignation aux prestataires ==
+Admin -> UI: Clique sur "Assigner" pour un questionnaire
+activate UI
+UI -> QueryManager: Demande liste des prestataires
+activate QueryManager
+QueryManager -> DataService: Requête liste prestataires
+activate DataService
+
+DataService -> QuestionnairesDB: SELECT * FROM utilisateurs\nWHERE role = 'prestataire'
+activate QuestionnairesDB
+QuestionnairesDB --> DataService: Liste prestataires
+deactivate QuestionnairesDB
+
+DataService --> QueryManager: Prestataires disponibles
+deactivate DataService
+QueryManager --> UI: Liste prestataires
+deactivate QueryManager
+
+UI -> UI: Affiche modale d'assignation
+Admin -> UI: Sélectionne prestataires
+UI -> UI: Valide sélection
+Admin -> UI: Confirme assignation
+
+UI -> AssignationService: Demande assignation
+activate AssignationService
+AssignationService -> QuestionnairesDB: CALL assigner_questionnaire_aux_prestataires\n(id_questionnaire, [ids_prestataires])
+activate QuestionnairesDB
+note right of QuestionnairesDB
+  Opération transactionnelle:
+  - Crée entrées statut pour chaque prestataire
+  - Notifie les prestataires sélectionnés
+end note
+
+alt Assignation réussie
+    QuestionnairesDB --> AssignationService: Confirmation
+    AssignationService --> UI: Assignation réussie
+    UI -> Admin: Notification succès
+else Erreur d'assignation
+    QuestionnairesDB --> AssignationService: Erreur
+    AssignationService --> UI: Erreur d'assignation
+    UI -> Admin: Affiche message d'erreur spécifique
+end
+deactivate QuestionnairesDB
+deactivate AssignationService
+deactivate UI
+
+@enduml

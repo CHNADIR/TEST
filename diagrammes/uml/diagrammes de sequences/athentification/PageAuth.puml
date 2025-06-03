@@ -1,0 +1,62 @@
+@startuml Authentification
+!theme plain
+skinparam sequenceMessageAlign center
+skinparam responseMessageBelowArrow true
+skinparam maxMessageSize 150
+
+title "Processus d'authentification"
+
+actor "Utilisateur\nnon connecté" as User
+participant "Interface utilisateur" as UI
+participant "Gestionnaire d'état" as StateManager
+participant "Système d'authentification" as AuthSystem
+participant "Base de données" as Database
+
+== Chargement initial ==
+User -> UI : Accède à la page de connexion
+activate UI
+UI -> StateManager : Vérifie si session existe
+activate StateManager
+StateManager -> UI : Retourne état de session
+deactivate StateManager
+
+alt Session déjà existante
+    UI -> UI : Détecte session active
+    UI -> User : Redirection vers page d'accueil
+    note right: Le système déterminera\nla destination finale selon\nle profil utilisateur
+else Pas de session active
+    UI -> User : Affiche le formulaire de connexion
+end
+
+== Tentative de connexion ==
+User -> UI : Saisit identifiants et soumet
+activate UI
+UI -> UI : Valide saisie formulaire
+UI -> StateManager : Demande connexion(identifiants)
+activate StateManager
+StateManager -> AuthSystem : Vérifie identifiants
+activate AuthSystem
+AuthSystem -> Database : Contrôle identifiants
+activate Database
+Database --> AuthSystem : Résultat de la vérification
+deactivate Database
+
+alt Authentification réussie
+    AuthSystem --> StateManager : Retourne jetons et profil
+    StateManager -> StateManager : Stocke session
+    StateManager -> StateManager : Met à jour profil utilisateur
+    StateManager --> UI : Confirme succès
+    UI -> UI : Détecte changement de session
+    UI -> User : Redirection selon profil
+    note right: Le système vérifie:\n1. Profil complété?\n2. Rôle utilisateur?\n3. Redirige vers\nla page appropriée
+else Échec d'authentification
+    AuthSystem --> StateManager : Retourne erreur
+    StateManager --> UI : Transmet erreur
+    UI -> User : Affiche message d'erreur
+    UI -> User : Maintient formulaire actif
+end
+deactivate AuthSystem
+deactivate StateManager
+deactivate UI
+
+@enduml
