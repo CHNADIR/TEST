@@ -97,6 +97,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   
   setPassword: async (password) => {
+    // Validation côté client
+    if (password.length < 12) {
+      return { error: { message: 'Le mot de passe doit contenir au moins 12 caractères' } };
+    }
+    
+    if (!/[A-Z]/.test(password)) {
+      return { error: { message: 'Le mot de passe doit contenir au moins une lettre majuscule' } };
+    }
+    
+    if (!/[a-z]/.test(password)) {
+      return { error: { message: 'Le mot de passe doit contenir au moins une lettre minuscule' } };
+    }
+    
+    if (!/[0-9]/.test(password)) {
+      return { error: { message: 'Le mot de passe doit contenir au moins un chiffre' } };
+    }
+    
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      return { error: { message: 'Le mot de passe doit contenir au moins un caractère spécial' } };
+    }
+    
+    // Si la validation passe, poursuivre avec la mise à jour du mot de passe
     try {
       const currentUser = get().user;
       const existingMetadata = currentUser?.user_metadata || {};

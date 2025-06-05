@@ -1,6 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Toaster } from "@/components/ui/toaster"; // Assuming this is your toast component
+import { Toaster } from "@/components/ui/toaster";
+import { ThemeProvider } from "@/components/theme-provider";
+import { useEffect } from 'react';
+import { I18nextProvider } from 'react-i18next';
+import i18next from './i18n';
+
+import { supabase } from '@/integrations/supabase/client';
 
 import AuthPage from './pages/Auth';
 import SetPasswordPage from './pages/SetPassword';
@@ -15,6 +21,7 @@ import ManageQuestionnairesPage from './pages/admin/ManageQuestionnaires'; // CO
 import ProviderProfilePage from './pages/provider/ProviderProfile';
 import MyQuestionnairesPage from './pages/provider/MyQuestionnaires';
 import NotificationsPage from './pages/Notifications'; // <-- IMPORT NEW PAGE
+import SettingsPage from './pages/Settings'; // Ajouter cette ligne
 import QuestionnaireDetailPage from './pages/provider/QuestionnaireDetailPage'; // <-- ADD THIS IMPORT
 import AdminQuestionnaireResponsesPage from './pages/admin/AdminQuestionnaireResponsesPage';
 // import AdminReviewSubmissionsPage from './pages/admin/AdminReviewSubmissionsPage'; // ANCIENNE - Supprimée ou commentée
@@ -50,6 +57,7 @@ const AppRoutes = () => {
       {/* Public Routes */}
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/set-password" element={<SetPasswordPage />} />
+      <Route path="/reset-password" element={<SetPasswordPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
       {/* Redirect root based on role or to auth */}
@@ -58,7 +66,8 @@ const AppRoutes = () => {
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} /> {/* <-- ADD NEW ROUTE */}
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/settings" element={<SettingsPage />} /> {/* Ajouter cette ligne */}
 
         {/* Provider Routes */}
         <Route element={<ProtectedRoute allowedRoles={['provider']} />}>
@@ -91,13 +100,33 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <Router>
-      <AppRoutes />
-    </Router>
-    <Toaster />
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        const preferredLanguage = data.user.user_metadata?.preferred_language;
+        if (preferredLanguage) {
+          i18next.changeLanguage(preferredLanguage);
+        }
+      }
+    };
+    
+    loadUserPreferences();
+  }, []);
+
+  return (
+    <I18nextProvider i18n={i18next}>
+      <ThemeProvider defaultTheme="light">
+        <QueryClientProvider client={queryClient}>
+          <Router>
+            <Toaster />
+            <AppRoutes />
+          </Router>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </I18nextProvider>
+  );
+};
 
 export default App;

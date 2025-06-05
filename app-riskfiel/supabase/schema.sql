@@ -409,14 +409,16 @@ CREATE OR REPLACE FUNCTION "public"."current_app_role"() RETURNS "public"."app_r
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'pg_catalog'
     AS $$
+  WITH user_role AS (
+    SELECT ur.role
+    FROM public.user_roles ur
+    WHERE ur.user_id = auth.uid()
+    LIMIT 1
+  )
   SELECT coalesce(
-           (SELECT ur.role
-              FROM public.user_roles ur
-             WHERE ur.user_id = (SELECT auth.uid()) -- Appel à auth.uid() encapsulé
-             ORDER BY ur.created_at DESC -- Bien que user_id devrait être unique
-             LIMIT 1),
-           'provider'::public.app_role -- Rôle par défaut si non trouvé
-         );
+    (SELECT role FROM user_role),
+    'provider'::public.app_role -- Rôle par défaut si non trouvé
+  );
 $$;
 
 
@@ -1553,41 +1555,11 @@ ALTER TABLE ONLY "public"."user_roles"
 
 
 
-CREATE POLICY "admin_can_read_all_user_roles" ON "public"."user_roles" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."user_roles" "ur_checker"
-  WHERE (("ur_checker"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur_checker"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))));
-
-
-
-CREATE POLICY "admin_read_all_provider_questionnaire_statuses" ON "public"."provider_questionnaire_status" FOR SELECT TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
-
-
-
-CREATE POLICY "admin_read_all_response_versions" ON "public"."provider_response_versions" FOR SELECT TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
-
-
-
-CREATE POLICY "admin_read_all_responses" ON "public"."provider_responses" FOR SELECT TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
-
-
-
 CREATE POLICY "admin_update_all_provider_questionnaire_statuses" ON "public"."provider_questionnaire_status" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))) WITH CHECK ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
 
 
 
 CREATE POLICY "admin_update_responses" ON "public"."provider_responses" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))) WITH CHECK ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
-
-
-
-CREATE POLICY "admins_delete_provider_roles" ON "public"."user_roles" FOR DELETE TO "authenticated" USING (((( SELECT "public"."current_app_role"() AS "current_app_role") = 'admin'::"public"."app_role") AND ("role" = 'provider'::"public"."app_role")));
-
-
-
-CREATE POLICY "admins_insert_provider_roles" ON "public"."user_roles" FOR INSERT TO "authenticated" WITH CHECK (((( SELECT "public"."current_app_role"() AS "current_app_role") = 'admin'::"public"."app_role") AND ("role" = 'provider'::"public"."app_role")));
-
-
-
-CREATE POLICY "admins_update_provider_roles" ON "public"."user_roles" FOR UPDATE TO "authenticated" USING (((( SELECT "public"."current_app_role"() AS "current_app_role") = 'admin'::"public"."app_role") AND ("role" = 'provider'::"public"."app_role"))) WITH CHECK (((( SELECT "public"."current_app_role"() AS "current_app_role") = 'admin'::"public"."app_role") AND ("role" = 'provider'::"public"."app_role")));
 
 
 
@@ -1601,30 +1573,42 @@ CREATE POLICY "provider_insert_own_responses" ON "public"."provider_responses" F
 ALTER TABLE "public"."provider_questionnaire_status" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "provider_read_own_questionnaire_statuses" ON "public"."provider_questionnaire_status" FOR SELECT TO "authenticated" USING (("provider_id" = ( SELECT "auth"."uid"() AS "uid")));
-
-
-
-CREATE POLICY "provider_read_own_response_versions" ON "public"."provider_response_versions" FOR SELECT TO "authenticated" USING (("provider_id" = ( SELECT "auth"."uid"() AS "uid")));
-
-
-
-CREATE POLICY "provider_read_own_responses" ON "public"."provider_responses" FOR SELECT TO "authenticated" USING (("provider_id" = ( SELECT "auth"."uid"() AS "uid")));
+CREATE POLICY "provider_questionnaire_status_select_policy" ON "public"."provider_questionnaire_status" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))) OR ("provider_id" = ( SELECT "auth"."uid"() AS "uid"))));
 
 
 
 ALTER TABLE "public"."provider_response_versions" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "provider_response_versions_select_policy" ON "public"."provider_response_versions" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))) OR ("provider_id" = ( SELECT "auth"."uid"() AS "uid"))));
+
+
+
 ALTER TABLE "public"."provider_responses" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "provider_responses_select_policy" ON "public"."provider_responses" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))) OR ("provider_id" = ( SELECT "auth"."uid"() AS "uid"))));
+
 
 
 ALTER TABLE "public"."questionnaires" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "questionnaires_access_policy" ON "public"."questionnaires" TO "authenticated" USING (((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])) OR ((( SELECT "public"."current_app_role"() AS "current_app_role") = 'provider'::"public"."app_role") AND (EXISTS ( SELECT 1
+CREATE POLICY "questionnaires_access_policy" ON "public"."questionnaires" TO "authenticated" USING (((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))) OR ((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'provider'::"public"."app_role")))) AND (EXISTS ( SELECT 1
    FROM "public"."provider_questionnaire_status" "pqs"
-  WHERE (("pqs"."questionnaire_id" = "questionnaires"."id") AND ("pqs"."provider_id" = ( SELECT "auth"."uid"() AS "uid")))))))) WITH CHECK ((( SELECT "public"."current_app_role"() AS "current_app_role") = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"])));
+  WHERE (("pqs"."questionnaire_id" = "questionnaires"."id") AND ("pqs"."provider_id" = ( SELECT "auth"."uid"() AS "uid")))))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))));
 
 
 
@@ -1635,27 +1619,45 @@ CREATE POLICY "questions_access_policy" ON "public"."questions" TO "authenticate
 
 
 
-CREATE POLICY "superadmins_delete_all" ON "public"."user_roles" FOR DELETE TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = 'superAdmin'::"public"."app_role"));
-
-
-
-CREATE POLICY "superadmins_insert_all" ON "public"."user_roles" FOR INSERT TO "authenticated" WITH CHECK ((( SELECT "public"."current_app_role"() AS "current_app_role") = 'superAdmin'::"public"."app_role"));
-
-
-
-CREATE POLICY "superadmins_update_all" ON "public"."user_roles" FOR UPDATE TO "authenticated" USING ((( SELECT "public"."current_app_role"() AS "current_app_role") = 'superAdmin'::"public"."app_role")) WITH CHECK ((( SELECT "public"."current_app_role"() AS "current_app_role") = 'superAdmin'::"public"."app_role"));
-
-
-
-CREATE POLICY "user_can_read_own_role" ON "public"."user_roles" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
-
-
-
 CREATE POLICY "user_read_own_notifications" ON "public"."notifications" FOR SELECT TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid")));
 
 
 
 ALTER TABLE "public"."user_roles" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "user_roles_delete_policy" ON "public"."user_roles" FOR DELETE TO "authenticated" USING ((((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'admin'::"public"."app_role")))) AND ("role" = 'provider'::"public"."app_role")) OR (EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'superAdmin'::"public"."app_role"))))));
+
+
+
+CREATE POLICY "user_roles_insert_policy" ON "public"."user_roles" FOR INSERT TO "authenticated" WITH CHECK ((((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'admin'::"public"."app_role")))) AND ("role" = 'provider'::"public"."app_role")) OR (EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'superAdmin'::"public"."app_role"))))));
+
+
+
+CREATE POLICY "user_roles_select_policy" ON "public"."user_roles" FOR SELECT TO "authenticated" USING (((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = ANY (ARRAY['admin'::"public"."app_role", 'superAdmin'::"public"."app_role"]))))) OR ("user_id" = ( SELECT "auth"."uid"() AS "uid"))));
+
+
+
+CREATE POLICY "user_roles_update_policy" ON "public"."user_roles" FOR UPDATE TO "authenticated" USING ((((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'admin'::"public"."app_role")))) AND ("role" = 'provider'::"public"."app_role")) OR (EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'superAdmin'::"public"."app_role")))))) WITH CHECK ((((EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'admin'::"public"."app_role")))) AND ("role" = 'provider'::"public"."app_role")) OR (EXISTS ( SELECT 1
+   FROM "public"."user_roles" "ur"
+  WHERE (("ur"."user_id" = ( SELECT "auth"."uid"() AS "uid")) AND ("ur"."role" = 'superAdmin'::"public"."app_role"))))));
+
 
 
 CREATE POLICY "user_update_own_notifications" ON "public"."notifications" FOR UPDATE TO "authenticated" USING (("user_id" = ( SELECT "auth"."uid"() AS "uid"))) WITH CHECK (("user_id" = ( SELECT "auth"."uid"() AS "uid")));

@@ -1,0 +1,40 @@
+{
+  "settings": {
+    "title": "Settings",
+    "password": {
+      "title": "Change Password",
+      "description": "Make sure your new password is secure and different from your previous passwords.",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "requirements": "Your password must contain at least 12 characters, one uppercase letter, one lowercase letter, one number, and one special character.",
+      "submit": "Change Password",
+      "loading": "Changing...",
+      "success": "Your password has been successfully updated",
+      "error": "An error occurred while changing your password",
+      "incorrectPassword": "Current password is incorrect"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "description": "Customize the appearance of the application according to your preferences.",
+      "darkMode": "Dark Mode",
+      "darkModeDescription": "Toggle between light and dark mode."
+    },
+    "language": {
+      "title": "Language",
+      "description": "Select the language in which you want to use the application.",
+      "selectLabel": "Application language",
+      "placeholder": "Select a language",
+      "french": "Français",
+      "english": "English",
+      "success": "Language changed to {{language}}",
+      "error": "Error while changing language"
+    },
+    "passwordStrength": {
+      "weak": "Weak",
+      "medium": "Medium",
+      "strong": "Strong",
+      "label": "Password strength:"
+    }
+  }
+}

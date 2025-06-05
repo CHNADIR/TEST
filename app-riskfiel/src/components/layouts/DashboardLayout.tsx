@@ -14,10 +14,11 @@ import {
   X,
   FileText,
   Bell,
-  CheckSquare, // <-- CheckSquare importé
-  Edit, // Assurez-vous que Edit ou une icône appropriée est importée
+  CheckSquare,
+  Edit,
   FileQuestion,
   MessageSquareWarning,
+  Settings, // Ajouter cette ligne pour importer l'icône Settings
 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query'; // Import useQueryClient
 import { supabase } from '@/integrations/supabase/client';
@@ -269,8 +270,11 @@ const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
                   <DropdownMenuSeparator />
                   {/* Vous pouvez décommenter ces lignes si nécessaire */}
                   {/* <DropdownMenuItem onClick={() => navigate('/provider/profile')}>Profile</DropdownMenuItem> */}
-                  {/* <DropdownMenuItem onClick={() => navigate('/settings')}>Settings</DropdownMenuItem> */}
-                  {/* <DropdownMenuSeparator /> */}
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    <Settings className="mr-2 h-4 w-4" /> {/* Ajouter cette ligne */}
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator /> 
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Log out</span>

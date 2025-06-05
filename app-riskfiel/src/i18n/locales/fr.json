@@ -1,0 +1,127 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "submit": "Soumettre",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "loading": "Chargement...",
+    "success": "Succès",
+    "error": "Erreur",
+    "confirmDelete": "Êtes-vous sûr de vouloir supprimer?"
+  },
+  "auth": {
+    "login": "Connexion",
+    "logout": "Déconnexion",
+    "email": "Email",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié?",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "signIn": "Se connecter",
+    "unauthorized": "Non autorisé"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bienvenue, {{name}}",
+    "overview": "Aperçu"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllAsRead": "Marquer tout comme lu",
+    "noNotifications": "Aucune notification"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "password": {
+      "title": "Changer le mot de passe",
+      "description": "Assurez-vous que votre nouveau mot de passe est sécurisé et différent de vos mots de passe précédents.",
+      "currentPassword": "Mot de passe actuel",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "requirements": "Votre mot de passe doit contenir au moins 12 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.",
+      "submit": "Changer le mot de passe",
+      "loading": "Changement en cours...",
+      "success": "Votre mot de passe a été mis à jour avec succès",
+      "error": "Une erreur est survenue lors du changement de mot de passe",
+      "incorrectPassword": "Mot de passe actuel incorrect"
+    },
+    "appearance": {
+      "title": "Apparence",
+      "description": "Personnalisez l'apparence de l'application selon vos préférences.",
+      "darkMode": "Mode sombre",
+      "darkModeDescription": "Basculer entre le mode clair et le mode sombre."
+    },
+    "language": {
+      "title": "Langue",
+      "description": "Sélectionnez la langue dans laquelle vous souhaitez utiliser l'application.",
+      "selectLabel": "Langue de l'application",
+      "placeholder": "Sélectionnez une langue",
+      "french": "Français",
+      "english": "English",
+      "success": "Langue changée en {{language}}",
+      "error": "Erreur lors du changement de langue"
+    },
+    "passwordStrength": {
+      "weak": "Faible",
+      "medium": "Moyenne",
+      "strong": "Forte",
+      "label": "Force du mot de passe:"
+    }
+  },
+  "admin": {
+    "manageProviders": "Gérer les fournisseurs",
+    "manageAdmins": "Gérer les administrateurs",
+    "manageQuestionnaires": "Gérer les questionnaires",
+    "manageQuestions": "Gérer les questions",
+    "reviewSubmissions": "Examiner les soumissions",
+    "addProvider": "Ajouter un fournisseur",
+    "addAdmin": "Ajouter un administrateur",
+    "providersTable": {
+      "name": "Nom",
+      "email": "Email",
+      "status": "Statut",
+      "actions": "Actions"
+    },
+    "questionnaire": {
+      "title": "Titre",
+      "description": "Description",
+      "questions": "Questions",
+      "status": "Statut",
+      "actions": "Actions",
+      "review": {
+        "providerAnswer": "Réponse du fournisseur",
+        "clear": "Réponse claire",
+        "needsClarification": "Nécessite une clarification",
+        "score": "Score",
+        "internalRemark": "Remarque interne",
+        "clarificationRequest": "Demande de clarification",
+        "globalComment": "Commentaire global",
+        "submitReview": "Soumettre l'évaluation"
+      }
+    }
+  },
+  "provider": {
+    "profile": "Profil",
+    "myQuestionnaires": "Mes questionnaires",
+    "questionnaireDetail": {
+      "submit": "Soumettre",
+      "save": "Enregistrer",
+      "attachFile": "Joindre un fichier",
+      "requiredQuestion": "Question obligatoire",
+      "clarificationRequested": "Clarification demandée"
+    }
+  },
+  "components": {
+    "layouts": {
+      "dashboard": {
+        "profile": "Profil",
+        "settings": "Paramètres",
+        "logout": "Déconnexion",
+        "darkMode": "Mode sombre"
+      }
+    }
+  }
+}
